@@ -61,3 +61,41 @@ public function failed($e)
     // Do some stuff
 }
 ```
+
+### 4. Dispatching workflows
+
+#### 4.1 Chains
+
+-   Chains are run one after the next, and if one failes, the subsequent jobs aren't run.
+-   These are dispatched with:
+
+```php
+\Illuminate\Support\Facades\Bus::chain($chain)->dispatch();
+```
+
+#### 4.2 Chains
+
+-   Batch jobs are run in parallel, and DO NOT depend on each other.
+-   These are dispatched with:
+
+```php
+\Illuminate\Support\Facades\Bus::batch($batches)->dispatch();
+```
+
+-   If one job fails, the remaining batch is cancelled. One can override this behaviour with:
+-   Adding the logic below to the handle method of the job:
+
+```php
+public function handle()
+{
+    if($this->batch()->cancelled()) {
+    return;
+    }
+}
+```
+
+-   Or `allowFailures` before dispatching:
+
+```php
+\Illuminate\Support\Facades\Bus::batch($batches)->allowFailures()->dispatch();
+```
