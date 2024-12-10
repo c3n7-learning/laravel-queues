@@ -73,7 +73,7 @@ public function failed($e)
 \Illuminate\Support\Facades\Bus::chain($chain)->dispatch();
 ```
 
-#### 4.2 Chains
+#### 4.2 Batches
 
 -   Batch jobs are run in parallel, and DO NOT depend on each other.
 -   These are dispatched with:
@@ -98,4 +98,56 @@ public function handle()
 
 ```php
 \Illuminate\Support\Facades\Bus::batch($batches)->allowFailures()->dispatch();
+```
+
+### 5. More Complex Workflows
+
+-   We have more flags
+
+```php
+\Illuminate\Support\Facades\Bus::batch($batches)
+    ->catch(function ($batch, $e) {
+        // If any of these jobs fail, this logic runs
+    })
+    ->then(function ($batch) {
+        // Will run after all jobs in the batch run successfully
+    })
+    ->finally(function ($batch) {
+        // Will run once the batch finishes, even if some of the jobs fail
+    })
+    ->onQueue('deployments') // Specify which queue to run this batch on
+    ->onConnection('database') // Which connection to use
+    ->dispatch();
+```
+
+-   To dispatch chains within a batch, use arrays in arrays. An array in a batch array is treated as a chain.
+
+```php
+$batch = [
+    [
+        new \App\Jobs\PullRepo('laracasts/project1'),
+        new \App\Jobs\RunTests('laracasts/project1'),
+        new \App\Jobs\Deploy('laracasts/project1'),
+    ],
+    [
+        new \App\Jobs\PullRepo('laracasts/project2'),
+        new \App\Jobs\RunTests('laracasts/project2'),
+        new \App\Jobs\Deploy('laracasts/project2'),
+    ],
+];
+
+\Illuminate\Support\Facades\Bus::batch($batch)
+    ->allowFailures()
+    ->dispatch();
+```
+
+-   To dispatch a batch within a chain, use a closure or dispatch the batch from within one of the jobs in the chain:
+
+```php
+\Illuminate\Support\Facades\Bus::chain([
+    new \App\Jobs\PullRepo('laracasts/project1'),
+    function () {
+        \Illuminate\Support\Facades\Bus::batch([/* ... */])->dispatch();
+    }
+])->dispatch();
 ```
