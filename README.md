@@ -272,3 +272,32 @@ public function middleware()
     ];
 }
 ```
+
+### 8. Designing Reliable Jobs
+
+-   If we want to dispatch a job after a commit (when using database transaction locks), use the `afterCommit` switch;
+
+```php
+YourJob::dispatch()->afterCommit();
+```
+
+-   We can make this the default behaviour by changing the configs in `queue.php` e.g.:
+
+```php
+'database' => [
+    // ...
+    'after_commit' => true, // set this to true
+],
+```
+
+-   `SerializesModels` traits means the models passed as part of the job's constructor will be converted to simple php objects, with the model type and key. The other data will be loaded when the job runs.
+-   Storing sensitive data in a job exposes it to anyone with access to the queue store. Beware of this. To encrypt the job, we can implement the `ShouldBeEncrypted` interface.
+
+```php
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+
+class YourJob implements ShouldQueue, ShouldBeEncrypted
+{
+    // ...
+}
+```
