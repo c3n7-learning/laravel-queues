@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
@@ -32,13 +33,13 @@ class Deploy implements ShouldQueue
         info("Finished Deploying! {$uuid}");
     }
 
+
     public function middleware()
     {
-        // Will prevent running this job while another instance is in progress
-        // However, this won't block but rather release the job back to the queue
-        // if another job is in progress
+        // Acts a circuit breaker that delays the job if it fails due to exceptions
+        // If the job fails, this middleware releases this job back to the queue up to X times, with a delay of Y seconds
         return [
-            new \Illuminate\Queue\Middleware\WithoutOverlapping('deployments', 10),
+            new \Illuminate\Queue\Middleware\ThrottlesExceptions(10, 100),
         ];
     }
 }

@@ -217,3 +217,58 @@ public function middleware()
     ];
 }
 ```
+
+### 7. More Job Configurations
+
+-   If we want to have only one instance in the queue, make the job implement the `ShouldUnique` interface.
+
+```php
+use Illuminate\Contracts\Queue\ShouldBeUnique;
+
+class YourJob implements ShouldQueue, ShouldBeUnique
+{
+    // ...
+}
+```
+
+-   By default the, the class name is used as the unique identifier. If we want to override this, override the `uniqueId` function
+
+```php
+public function uniqueId()
+{
+    return 'deployments';
+}
+```
+
+-   We can specify how long this unique lock will last. By default a job releases it's lock once it is done processing, but if something happens like an exception, the lock won't be released. We can override this by:
+
+```php
+public function uniqueFor()
+{
+    return 60; // 60 Seconds
+}
+```
+
+-   If we want to prevent dispatching until the current job starts processing, we can use the `ShouldBeUniqueUntilProcessing` interface.
+
+```php
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+
+class YourJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
+{
+    // ...
+}
+```
+
+-   If we want to throttle based on exceptions:
+
+```php
+public function middleware()
+{
+    // Acts a circuit breaker that delays the job if it fails due to exceptions
+    // If the job fails, this middleware releases this job back to the queue up to X times, with a delay of Y seconds
+    return [
+        new \Illuminate\Queue\Middleware\ThrottlesExceptions(10, 100),
+    ];
+}
+```
