@@ -375,3 +375,107 @@ stopwaitsecs=3600
     'balanceCooldown' => 1,
 ]
 ```
+
+### 11. Configurations Reference
+
+Below are all is the reference for the `queue:work` command:
+
+```ascii
+$ php artisan queue:work --help
+Description:
+  Start processing jobs on the queue as a daemon
+
+Usage:
+  queue:work [options] [--] [<connection>]
+
+Arguments:
+  connection                 The name of the queue connection to work
+
+Options:
+      --name[=NAME]          The name of the worker [default: "default"] (Useful when debugging to see which worker has issues)
+      --queue[=QUEUE]        The names of the queues to work (Comma separated if more than one, the priority is configured by ordering them from left to right)
+      --once                 Only process the next job on the queue (Useful if you want to restart the worker after each job is run. Very expensive though performance-wise)
+      --stop-when-empty      Stop when the queue is empty
+      --backoff[=BACKOFF]    The number of seconds to wait before retrying a job that encountered an uncaught exception [default: "0"] (Also supports an array/comma separated values)
+      --max-jobs[=MAX-JOBS]  The number of jobs to process before stopping [default: "0"]
+      --max-time[=MAX-TIME]  The maximum number of seconds the worker should run [default: "0"]
+      --force                Force the worker to run even in maintenance mode
+      --memory[=MEMORY]      The memory limit in megabytes [default: "128"] (Instruct the worker to exit once the php worker detects X memory has been allocated)
+      --sleep[=SLEEP]        Number of seconds to sleep when no job is available [default: "3"]
+      --rest[=REST]          Number of seconds to rest between jobs [default: "0"] (Useful e.g when communicating with thirdparties)
+      --timeout[=TIMEOUT]    The number of seconds a child process can run [default: "60"] (Maximum number of seconds a job can run before being terminated)
+      --tries[=TRIES]        Number of times to attempt a job before logging it failed [default: "1"]
+      --json                 Output the queue worker information as JSON
+  -h, --help                 Display help for the given command. When no command is given display help for the list command
+      --silent               Do not output any message
+  -q, --quiet                Only errors are displayed. All other output is suppressed
+  -V, --version              Display this application version
+      --ansi|--no-ansi       Force (or disable --no-ansi) ANSI output
+  -n, --no-interaction       Do not ask any interactive question
+      --env[=ENV]            The environment the command should run under
+  -v|vv|vvv, --verbose       Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug
+```
+
+-   Let's go over the switches in our Job Class
+
+```php
+class YourJob implements ShouldQueue
+{
+    use Queueable;
+
+    public $connection = 'redis';
+    public $queue = 'notifications';
+    public $backoff = 30; // In seconds, array or method
+    public $timeout = 60; // Run this job for X seconds before calling it failed
+    public $tries = 3; // Number of tries
+    public $delay = 300; // Delay in Sec that will be used before dispatching this job to the queue.
+    public $afterCommit = true; // When doing DB Transactions
+    public $shouldBeEncrypted = true; // Encrypt the job before storing it in the queue store.
+
+    // When implementing the ShouldBeUnique or ShouldBeUniqueUntilProcessing intefaces
+    // Override the unique id
+    public $uniqueId = 'products';
+    public function uniqueId() {
+        return 'some-unique-id';
+    }
+    // We can also define the no. of seconds the unique lock should be in place before auto-releasing
+    public $uniqeFor = 10; // Seconds
+
+
+    // When SerializesModels is used, when unserializing a job and we do not find the record, the default behaviour is to throw a ModelNotFoundException
+    // This config below tells laravel to just delete the job from the queue when this happens, and not throw an exception.
+    public $deleteWhenMissingModels = true;
+
+    // Retry until date time
+    public $tries = 0; // This means retry indefinitely so we can rely on retryUntil.
+
+    public function retryUntil() {
+        return now()->addDay();
+    }
+}
+```
+
+-   As for the configurations in `queue.php`
+
+```php
+'database' => [
+    'driver' => 'database',
+    'connection' => env('DB_QUEUE_CONNECTION'),
+    'table' => env('DB_QUEUE_TABLE', 'jobs'),
+    'queue' => env('DB_QUEUE', 'default'),
+
+    'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90), // Number of seconds a job remains reserved before being released back to the queue if a job hangs. Always ensure this greater than the $timeOut in any job.
+    // Otherwise the job will be released back to the queue while another instance of it is still being processed by a worker.
+
+    'after_commit' => false,
+],
+
+'redis' => [
+    'driver' => 'redis',
+    'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+    'queue' => env('REDIS_QUEUE', 'default'),
+    'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+    'block_for' => null, // If configured, it will keep the redis/beanstalk connection open and wait for jobs to be available for X seconds, if we want to save on resources/networking resources.
+    'after_commit' => false,
+],
+```
