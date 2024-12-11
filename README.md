@@ -314,3 +314,64 @@ sudo supervisorctl stop "laravel-worker:*"
 php artisan migrate --force
 sudo supervisorctl start "laravel-worker:*"
 ```
+
+### 10. Scaling Workers
+
+-   One way is to add more servers to your cluster.
+-   When you want to scale workers on the same maching, we can use `supervisord` and `cron`
+
+```shell
+[program:extra-workers]
+process_name=%(program_name)s_%(process_num)02d
+command=php /home/forge/app.com/artisan queue:work
+autostart=false # We don't want the job starting automatically
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=forge
+numprocs=3
+redirect_stderr=true
+stdout_logfile=/home/forge/app.com/extra-workers.log
+stopwaitsecs=3600
+```
+
+-   If we know our job receives a lot of lot at a specific time of the day, we can use cron. In `/etc/crontab`
+
+```shell
+# At 7am every day
+0 7 * * * root supervisorctl start extra-workers:*
+
+# At 11am every day
+0 11 * * * root supervisorctl start extra-workers:*
+```
+
+-   We can also periodically start a bunch of queue workers, and they can exit if there aren't jobs in the queue using the `--stop-when-empty` option.
+-   We can also stop a worker after X seconds even when the queue is still busy.
+
+```shell
+# Every 10 minutes
+*/10 * * * * forge php /home/forge/app.com/artisan queue:work --stop-when-empty --max-time=540 # 10 seconds
+```
+
+-   You can also explore horizon if using the `redis` queue:
+
+```php
+'supervisor1' => [
+    'queue' => ['deployments', 'notifications'],
+    'balance' => 'auto', // Ensure it is auto. "Time to clear" algorithm is preferred where the queue with jobs taking more time will be assigned more workers
+    'minProceses' => 1,
+    'maxProceses' => 10,
+    'balanceMaxShift' => 3,
+    'balanceCooldown' => 1,
+]
+```
+
+-   To control the rate of scaling, configure `balanceMaxShift` and `balanceCooldown`:
+
+```php
+'supervisor1' => [
+    // Add or remove 3 workers every second
+    'balanceMaxShift' => 3,
+    'balanceCooldown' => 1,
+]
+```
