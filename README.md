@@ -151,3 +151,69 @@ $batch = [
     }
 ])->dispatch();
 ```
+
+### 6. Controlling and Limiting Jobs
+
+-   To use atomic locks so as to not have similar jobs running concurrently, in the `handle` method of your job:
+
+```php
+// First param is how long to wait before throwing an exception (could not acquire lock)
+// Second param is for when we finally acquire the lock
+Cache::lock('deployments')->block(10, function () {
+    $uuid = (string) random_int(1_000, 9_999);
+    info("Started Deploying {$uuid}");
+
+    sleep(5);
+
+    info("Finished Deploying! {$uuid}");
+});
+```
+
+-   We can also the `Redis::funnel` method:
+
+```php
+// Let's use the redis rate limiter
+Redis::funnel('deployments')
+    ->allow(10) // Allow 10 instances of this job
+    ->every(60) // For every 60 Seconds
+    ->block(10) // Block execution for 10 sec to wait for a lock to be acquired
+    ->then(function () {
+        $uuid = (string) random_int(1_000, 9_999);
+        info("Started Deploying {$uuid}");
+
+        sleep(5);
+
+        info("Finished Deploying! {$uuid}");
+    });
+```
+
+-   For rate limiting using `Redis`:
+
+```php
+// Let's use the redis concurrency limiter
+Redis::throttle('deployments')
+    ->limit(5) // Only 5 instances of the job can run at any given time
+    ->block(10) // Block execution for 10 sec to wait for a lock to be acquired
+    ->then(function () {
+        $uuid = (string) random_int(1_000, 9_999);
+        info("Started Deploying {$uuid}");
+
+        sleep(5);
+
+        info("Finished Deploying! {$uuid}");
+    });
+```
+
+-   To prevent overlapping jobs from being run at the same time:
+
+```php
+public function middleware()
+{
+    // Will prevent running this job while another instance is in progress
+    // However, this won't block but rather release the job back to the queue
+    // if another job is in progress
+    return [
+        new \Illuminate\Queue\Middleware\WithoutOverlapping('deployments', 10),
+    ];
+}
+```
