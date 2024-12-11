@@ -301,3 +301,16 @@ class YourJob implements ShouldQueue, ShouldBeEncrypted
     // ...
 }
 ```
+
+### 9. Deployments
+
+-   We can use a tool like `supervisord` to manage the queue workers, and restart them if they fail.
+-   [Refer here for supervisor docs](https://laravel.com/docs/11.x/queues#supervisor-configuration)
+-   We can send a signal for queue workers to restart using `php artisan queue:restart`.
+-   If we intend to stop all queue workers when doing heavy updates like database migrations that might affect the queue, stop the supervisor
+
+```shell
+sudo supervisorctl stop "laravel-worker:*"
+php artisan migrate --force
+sudo supervisorctl start "laravel-worker:*"
+```
